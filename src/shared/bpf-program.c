@@ -94,6 +94,24 @@ int bpf_program_load_kernel(BPFProgram *p, char *log_buf, size_t log_size) {
         return 0;
 }
 
+int bpf_program_get_pinned(BPFProgram *p, const char *pathname) {
+
+        assert(p);
+        assert(pathname);
+
+        assert(p->kernel_fd < 0);
+
+        union bpf_attr attr = {
+                .pathname = PTR_TO_UINT64(pathname),
+        };
+
+        p->kernel_fd = bpf(BPF_OBJ_GET, &attr, sizeof(attr));
+        if (p->kernel_fd < 0)
+                return -errno;
+
+        return 0;
+}
+
 int bpf_program_cgroup_attach(BPFProgram *p, int type, const char *path, uint32_t flags) {
         _cleanup_free_ char *copy = NULL;
         _cleanup_close_ int fd = -1;

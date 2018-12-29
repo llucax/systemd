@@ -130,6 +130,8 @@ static bool arg_default_tasks_accounting = true;
 static uint64_t arg_default_tasks_max = UINT64_MAX;
 static sd_id128_t arg_machine_id = {};
 static EmergencyAction arg_cad_burst_action = EMERGENCY_ACTION_REBOOT_FORCE;
+static bool arg_default_ip_ingress_filter_bpf = false;
+static bool arg_default_ip_egress_filter_bpf = false;
 
 _noreturn_ static void freeze_or_exit_or_reboot(void) {
 
@@ -720,6 +722,8 @@ static int parse_config_file(void) {
                 { "Manager", "DefaultTasksAccounting",    config_parse_bool,             0, &arg_default_tasks_accounting          },
                 { "Manager", "DefaultTasksMax",           config_parse_tasks_max,        0, &arg_default_tasks_max                 },
                 { "Manager", "CtrlAltDelBurstAction",     config_parse_emergency_action, 0, &arg_cad_burst_action                  },
+                { "Manager", "DefaultIPIngressFilterBPF", config_parse_bool,             0, &arg_default_ip_ingress_filter_bpf     },
+                { "Manager", "DefaultIPEgressFilterBPF",  config_parse_bool,             0, &arg_default_ip_egress_filter_bpf      },
                 {}
         };
 
@@ -775,6 +779,9 @@ static void set_manager_defaults(Manager *m) {
         m->default_memory_accounting = arg_default_memory_accounting;
         m->default_tasks_accounting = arg_default_tasks_accounting;
         m->default_tasks_max = arg_default_tasks_max;
+
+        m->default_ip_ingress_filter_bpf = arg_default_ip_ingress_filter_bpf;
+        m->default_ip_egress_filter_bpf = arg_default_ip_egress_filter_bpf;
 
         (void) manager_set_default_rlimits(m, arg_default_rlimit);
 

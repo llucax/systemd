@@ -78,6 +78,8 @@ struct CGroupContext {
         bool memory_accounting;
         bool tasks_accounting;
         bool ip_accounting;
+        bool ip_ingress_filter_bpf;
+        bool ip_egress_filter_bpf;
 
         /* For unified hierarchy */
         uint64_t cpu_weight;

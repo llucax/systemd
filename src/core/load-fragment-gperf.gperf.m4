@@ -196,6 +196,8 @@ $1.DisableControllers,           config_parse_disable_controllers,   0,         
 $1.IPAccounting,                 config_parse_bool,                  0,                             offsetof($1, cgroup_context.ip_accounting)
 $1.IPAddressAllow,               config_parse_ip_address_access,     0,                             offsetof($1, cgroup_context.ip_address_allow)
 $1.IPAddressDeny,                config_parse_ip_address_access,     0,                             offsetof($1, cgroup_context.ip_address_deny)
+$1.IPIngressFilterBPF,           config_parse_bool,                  0,                             offsetof($1, cgroup_context.ip_ingress_filter_bpf)
+$1.IPEgressFilterBPF,            config_parse_bool,                  0,                             offsetof($1, cgroup_context.ip_egress_filter_bpf)
 $1.NetClass,                     config_parse_warn_compat,           DISABLED_LEGACY,               0'
 )m4_dnl
 Unit.Description,                config_parse_unit_string_printf,    0,                             offsetof(Unit, description)

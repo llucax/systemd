@@ -325,6 +325,9 @@ struct Manager {
         bool default_tasks_accounting;
         bool default_ip_accounting;
 
+        bool default_ip_ingress_filter_bpf;
+        bool default_ip_egress_filter_bpf;
+
         uint64_t default_tasks_max;
         usec_t default_timer_accuracy_usec;
 

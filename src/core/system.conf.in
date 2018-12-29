@@ -46,6 +46,8 @@
 #DefaultMemoryAccounting=@MEMORY_ACCOUNTING_DEFAULT@
 #DefaultTasksAccounting=yes
 #DefaultTasksMax=15%
+#DefaultIPIngressFilterBPF=no
+#DefaultIPEgressFilterBPF=no
 #DefaultLimitCPU=
 #DefaultLimitFSIZE=
 #DefaultLimitDATA=

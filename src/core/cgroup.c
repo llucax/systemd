@@ -219,6 +219,8 @@ void cgroup_context_dump(CGroupContext *c, FILE* f, const char *prefix) {
                 "%sMemoryAccounting=%s\n"
                 "%sTasksAccounting=%s\n"
                 "%sIPAccounting=%s\n"
+                "%sIPIngressFilterBPF=%s\n"
+                "%sIPEgressFilterBPF=%s\n"
                 "%sCPUWeight=%" PRIu64 "\n"
                 "%sStartupCPUWeight=%" PRIu64 "\n"
                 "%sCPUShares=%" PRIu64 "\n"
@@ -243,6 +245,8 @@ void cgroup_context_dump(CGroupContext *c, FILE* f, const char *prefix) {
                 prefix, yes_no(c->memory_accounting),
                 prefix, yes_no(c->tasks_accounting),
                 prefix, yes_no(c->ip_accounting),
+                prefix, yes_no(c->ip_ingress_filter_bpf),
+                prefix, yes_no(c->ip_egress_filter_bpf),
                 prefix, c->cpu_weight,
                 prefix, c->startup_cpu_weight,
                 prefix, c->cpu_shares,
@@ -842,7 +846,7 @@ static void cgroup_apply_firewall(Unit *u) {
 
         /* Best-effort: let's apply IP firewalling and/or accounting if that's enabled */
 
-        if (bpf_firewall_compile(u) < 0)
+        if (bpf_firewall_prepare(u) < 0)
                 return;
 
         (void) bpf_firewall_install(u);
@@ -1251,7 +1255,9 @@ static bool unit_get_needs_bpf_firewall(Unit *u) {
 
         if (c->ip_accounting ||
             c->ip_address_allow ||
-            c->ip_address_deny)
+            c->ip_address_deny ||
+            c->ip_ingress_filter_bpf ||
+            c->ip_egress_filter_bpf)
                 return true;
 
         /* If any parent slice has an IP access list defined, it applies too */
@@ -1260,6 +1266,7 @@ static bool unit_get_needs_bpf_firewall(Unit *u) {
                 if (!c)
                         return false;
 
+                /* XXX: Should we also return true if parents have ingress/egress filters? I guess yes, but I'm not sure */
                 if (c->ip_address_allow ||
                     c->ip_address_deny)
                         return true;

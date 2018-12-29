@@ -13,7 +13,7 @@ enum {
 
 int bpf_firewall_supported(void);
 
-int bpf_firewall_compile(Unit *u);
+int bpf_firewall_prepare(Unit *u);
 int bpf_firewall_install(Unit *u);
 
 int bpf_firewall_read_accounting(int map_fd, uint64_t *ret_bytes, uint64_t *ret_packets);

@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
 
         unit_dump(u, stdout, NULL);
 
-        r = bpf_firewall_compile(u);
+        r = bpf_firewall_prepare(u);
         if (IN_SET(r, -ENOTTY, -ENOSYS, -EPERM))
                 return log_tests_skipped("Kernel doesn't support the necessary bpf bits (masked out via seccomp?)");
         assert_se(r >= 0);

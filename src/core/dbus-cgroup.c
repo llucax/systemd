@@ -360,6 +360,8 @@ const sd_bus_vtable bus_cgroup_vtable[] = {
         SD_BUS_PROPERTY("IPAddressAllow", "a(iayu)", property_get_ip_address_access, offsetof(CGroupContext, ip_address_allow), 0),
         SD_BUS_PROPERTY("IPAddressDeny", "a(iayu)", property_get_ip_address_access, offsetof(CGroupContext, ip_address_deny), 0),
         SD_BUS_PROPERTY("DisableControllers", "as", property_get_cgroup_mask, offsetof(CGroupContext, disable_controllers), 0),
+        SD_BUS_PROPERTY("IPIngressFilterBPF", "b", bus_property_get_bool, offsetof(CGroupContext, ip_ingress_filter_bpf), 0),
+        SD_BUS_PROPERTY("IPEgressFilterBPF", "b", bus_property_get_bool, offsetof(CGroupContext, ip_egress_filter_bpf), 0),
         SD_BUS_VTABLE_END
 };
 
@@ -1406,6 +1408,39 @@ int bus_cgroup_set_property(
                 }
 
                 return 1;
+
+        } else if (streq(name, "IPIngressFilterBPF")) {
+                int b;
+
+                r = sd_bus_message_read(message, "b", &b);
+                if (r < 0)
+                        return r;
+
+                if (!UNIT_WRITE_FLAGS_NOOP(flags)) {
+                        c->ip_ingress_filter_bpf = b;
+
+                        unit_invalidate_cgroup_bpf(u); /* XXX: Should we? Not sure... */
+                        unit_write_settingf(u, flags, name, "IPIngressFilterBPF=%s", yes_no(b));
+                }
+
+                return 1;
+
+        } else if (streq(name, "IPEgressFilterBPF")) {
+                int b;
+
+                r = sd_bus_message_read(message, "b", &b);
+                if (r < 0)
+                        return r;
+
+                if (!UNIT_WRITE_FLAGS_NOOP(flags)) {
+                        c->ip_egress_filter_bpf = b;
+
+                        unit_invalidate_cgroup_bpf(u); /* XXX: Should we? Not sure... */
+                        unit_write_settingf(u, flags, name, "IPEgressFilterBPF=%s", yes_no(b));
+                }
+
+                return 1;
+
         }
 
         if (u->transient && u->load_state == UNIT_STUB)

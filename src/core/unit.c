@@ -162,6 +162,8 @@ static void unit_init(Unit *u) {
                 cc->blockio_accounting = u->manager->default_blockio_accounting;
                 cc->memory_accounting = u->manager->default_memory_accounting;
                 cc->tasks_accounting = u->manager->default_tasks_accounting;
+                cc->ip_ingress_filter_bpf = u->manager->default_ip_ingress_filter_bpf;
+                cc->ip_egress_filter_bpf = u->manager->default_ip_egress_filter_bpf;
 
                 if (u->type != UNIT_SLICE)
                         cc->tasks_max = u->manager->default_tasks_max;

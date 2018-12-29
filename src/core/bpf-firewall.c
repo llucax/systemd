@@ -123,6 +123,35 @@ static int add_lookup_instructions(
         return 0;
 }
 
+static int bpf_firewall_get_pinned_bpf(
+                Unit *u,
+                const char* pathname,
+                BPFProgram **ret) {
+
+        int r;
+
+        assert(u);
+
+        /* XXX: Not sure if the _cleanup_()/TAKE_PTR() trick is necessary here
+         *      like in bpf_firewall_compile_bpf(), but using it anyway for
+         *      extra safety.
+         * TODO: read more about _cleanup_() and TAKE_PTR() to decide.
+         */
+        _cleanup_(bpf_program_unrefp) BPFProgram *p = NULL;
+
+        r = bpf_program_new(BPF_PROG_TYPE_CGROUP_SKB, &p);
+        if (r < 0)
+                return r;
+
+        r = bpf_program_get_pinned(p, pathname);
+        if (r < 0)
+                return r;
+
+        *ret = TAKE_PTR(p);
+
+        return 0;
+}
+
 static int bpf_firewall_compile_bpf(
                 Unit *u,
                 bool is_ingress,
@@ -470,7 +499,7 @@ static int bpf_firewall_prepare_accounting_maps(Unit *u, bool enabled, int *fd_i
         return 0;
 }
 
-int bpf_firewall_compile(Unit *u) {
+int bpf_firewall_prepare(Unit *u) {
         CGroupContext *cc;
         int r, supported;
 
@@ -510,33 +539,54 @@ int bpf_firewall_compile(Unit *u) {
         u->ipv6_allow_map_fd = safe_close(u->ipv6_allow_map_fd);
         u->ipv6_deny_map_fd = safe_close(u->ipv6_deny_map_fd);
 
-        if (u->type != UNIT_SLICE) {
-                /* In inner nodes we only do accounting, we do not actually bother with access control. However, leaf
-                 * nodes will incorporate all IP access rules set on all their parent nodes. This has the benefit that
-                 * they can optionally cancel out system-wide rules. Since inner nodes can't contain processes this
-                 * means that all configure IP access rules *will* take effect on processes, even though we never
-                 * compile them for inner nodes. */
+        /* XXX: For now custom BPF programs take precedence over access lists and accounting.
+         *      We assume for now they are mutually exclusive so if one is enabled, the other won't be */
+        if (!cc->ip_ingress_filter_bpf && !cc->ip_egress_filter_bpf) {
+                if (u->type != UNIT_SLICE) {
+                        /* In inner nodes we only do accounting, we do not actually bother with access control. However, leaf
+                         * nodes will incorporate all IP access rules set on all their parent nodes. This has the benefit that
+                         * they can optionally cancel out system-wide rules. Since inner nodes can't contain processes this
+                         * means that all configure IP access rules *will* take effect on processes, even though we never
+                         * compile them for inner nodes. */
 
-                r = bpf_firewall_prepare_access_maps(u, ACCESS_ALLOWED, &u->ipv4_allow_map_fd, &u->ipv6_allow_map_fd);
-                if (r < 0)
-                        return log_unit_error_errno(u, r, "Preparation of eBPF allow maps failed: %m");
+                        r = bpf_firewall_prepare_access_maps(u, ACCESS_ALLOWED, &u->ipv4_allow_map_fd, &u->ipv6_allow_map_fd);
+                        if (r < 0)
+                                return log_unit_error_errno(u, r, "Preparation of eBPF allow maps failed: %m");
 
-                r = bpf_firewall_prepare_access_maps(u, ACCESS_DENIED, &u->ipv4_deny_map_fd, &u->ipv6_deny_map_fd);
+                        r = bpf_firewall_prepare_access_maps(u, ACCESS_DENIED, &u->ipv4_deny_map_fd, &u->ipv6_deny_map_fd);
+                        if (r < 0)
+                                return log_unit_error_errno(u, r, "Preparation of eBPF deny maps failed: %m");
+                }
+
+                r = bpf_firewall_prepare_accounting_maps(u, cc->ip_accounting, &u->ip_accounting_ingress_map_fd,
+                                                         &u->ip_accounting_egress_map_fd);
                 if (r < 0)
-                        return log_unit_error_errno(u, r, "Preparation of eBPF deny maps failed: %m");
+                        return log_unit_error_errno(u, r, "Preparation of eBPF accounting maps failed: %m");
         }
 
-        r = bpf_firewall_prepare_accounting_maps(u, cc->ip_accounting, &u->ip_accounting_ingress_map_fd, &u->ip_accounting_egress_map_fd);
-        if (r < 0)
-                return log_unit_error_errno(u, r, "Preparation of eBPF accounting maps failed: %m");
+        if (cc->ip_ingress_filter_bpf) {
+                /* TODO: Build correct path: /sys/fs/bpf/systemd/<unit-name>/ip-ingress-filter */
+                const char* pathname = "/sys/fs/bpf/ip-ingress-filter";
+                r = bpf_firewall_get_pinned_bpf(u, pathname, &u->ip_bpf_ingress); // TODO: build path
+                if (r < 0)
+                        return log_unit_error_errno(u, r, "Getting pinned ingress BPF program at %s failed: %m", pathname);
+        } else {
+                r = bpf_firewall_compile_bpf(u, true, &u->ip_bpf_ingress);
+                if (r < 0)
+                        return log_unit_error_errno(u, r, "Compilation for ingress BPF program failed: %m");
+        }
 
-        r = bpf_firewall_compile_bpf(u, true, &u->ip_bpf_ingress);
-        if (r < 0)
-                return log_unit_error_errno(u, r, "Compilation for ingress BPF program failed: %m");
-
-        r = bpf_firewall_compile_bpf(u, false, &u->ip_bpf_egress);
-        if (r < 0)
-                return log_unit_error_errno(u, r, "Compilation for egress BPF program failed: %m");
+        if (cc->ip_egress_filter_bpf) {
+                /* TODO: Build correct path: /sys/fs/bpf/systemd/<unit-name>/ip-egress-filter */
+                const char* pathname = "/sys/fs/bpf/ip-egress-filter";
+                r = bpf_firewall_get_pinned_bpf(u, pathname, &u->ip_bpf_egress);
+                if (r < 0)
+                        return log_unit_error_errno(u, r, "Getting pinned egress BPF program at %s failed: %m", pathname);
+        } else {
+                r = bpf_firewall_compile_bpf(u, false, &u->ip_bpf_egress);
+                if (r < 0)
+                        return log_unit_error_errno(u, r, "Compilation for egress BPF program failed: %m");
+        }
 
         return 0;
 }
@@ -581,7 +631,7 @@ int bpf_firewall_install(Unit *u) {
         u->ip_bpf_egress_installed = bpf_program_unref(u->ip_bpf_egress_installed);
         u->ip_bpf_ingress_installed = bpf_program_unref(u->ip_bpf_ingress_installed);
 
-        if (u->ip_bpf_egress) {
+        if (cc->ip_egress_filter_bpf || u->ip_bpf_egress) {
                 r = bpf_program_cgroup_attach(u->ip_bpf_egress, BPF_CGROUP_INET_EGRESS, path, flags);
                 if (r < 0)
                         return log_unit_error_errno(u, r, "Attaching egress BPF program to cgroup %s failed: %m", path);
@@ -590,7 +640,7 @@ int bpf_firewall_install(Unit *u) {
                 u->ip_bpf_egress_installed = bpf_program_ref(u->ip_bpf_egress);
         }
 
-        if (u->ip_bpf_ingress) {
+        if (cc->ip_ingress_filter_bpf || u->ip_bpf_ingress) {
                 r = bpf_program_cgroup_attach(u->ip_bpf_ingress, BPF_CGROUP_INET_INGRESS, path, flags);
                 if (r < 0)
                         return log_unit_error_errno(u, r, "Attaching ingress BPF program to cgroup %s failed: %m", path);
