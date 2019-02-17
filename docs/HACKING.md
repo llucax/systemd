@@ -31,8 +31,11 @@ fresh build of the project in the local working directory. To make use of this,
 please acquire `mkosi` from https://github.com/systemd/mkosi first, unless your
 distribution has packaged it already and you can get it from there. After the
 tool is installed it is sufficient to type `mkosi` in the systemd project
-directory to generate a disk image `image.raw` you can boot either in
-`systemd-nspawn` or in an UEFI-capable VM:
+directory to generate a disk image `image.raw`. If you are using a different
+distribution there are several extra config files provided in `.mkosi`. If you
+want to build for Debian for example, use `mkosi --default
+.mkosi/mkosi.debian`. You can boot either in `systemd-nspawn` or in an
+UEFI-capable VM:
 
 ```
 # systemd-nspawn -bi image.raw
@@ -75,7 +78,8 @@ $ meson build                          # configure the build
 $ ninja -C build                       # build it locally, see if everything compiles fine
 $ ninja -C build test                  # run some simple regression tests
 $ (umask 077; echo 123 > mkosi.rootpw) # set root password used by mkosi
-$ sudo mkosi                           # build a test image
+$ sudo mkosi                           # build a test image, add --default
+                                       # .mkosi/mkosi.<dist> if needed
 $ sudo systemd-nspawn -bi image.raw    # boot up the test image
 $ git add -p                           # interactively put together your patch
 $ git commit                           # commit it
